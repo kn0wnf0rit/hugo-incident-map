@@ -1,27 +1,28 @@
-# Hugo Incident Map (2026)
+# Washington County Incident Map
 
-Interactive map of every incident the Washington County Sheriff's Office logged with a Hugo, Minnesota address in 2026, colored by severity. Hover a dot for a summary; click for the full public record.
+An interactive map of every incident in the Washington County (Minnesota) Sheriff's Office public media log — 242,000+ calls from September 2022 through the latest weekly file — for all 31 cities and townships in the county. Pick a city, filter by year, month, severity or event type, hover a dot for a summary and click for the full record. The county overview shades each city by incidents per year per square mile.
 
-**Live map:** see the GitHub Pages URL in the repo settings (root `index.html`).
+Live: open `index.html` from a web server (GitHub Pages works as-is). It will not run from a `file://` URL because the city data is loaded on demand with `fetch`.
 
-## Data
+## Layout
 
-- Source: Washington County Sheriff's Office weekly media incident summaries — https://web1.co.washington.mn.us/MediaReports/RMS/ (`IncidentSummary_YYYYMMDD.csv`, one file per week).
-- Filter: rows with city `HUGO` and a 2026 timestamp (2,432 incidents, Jan 1 – Sep 5, 2026 as of the Sept 9 file).
-- Fields published by the county: agency, city, timestamp, case number, block-level address or intersection, event description. There is no narrative text in the public log.
+```
+index.html              the app (all CSS/JS inline; embeds data/index.json)
+data/index.json         city list, per-year / per-severity counts, bounding boxes
+data/county.json        city polygons + major roads + lakes for the overview
+data/city/<slug>.json   per-city basemap (OSM roads, water, streams, rail, boundary, labels)
+data/inc/<slug>.json    per-city incidents (compact rows)
+```
 
-## How the dots are placed
+Incident rows are `[case, YYMMDDHHMM, addressIdx, eventIdx, severity, precisionIdx, lat*1e5, lon*1e5, agencyIdx]` with lookup tables `ad`, `ev`, `ag` in the same file. Precision codes: block, block~, intersection, intersection~, grid, street, area.
 
-The county only publishes block-level addresses ("5XXX 157th St N") or intersections, so every position is approximate by design:
+## Source and method
 
-- Streets, lakes and the city boundary come from OpenStreetMap (© OpenStreetMap contributors, ODbL).
-- Block addresses are placed along the named street using Washington County's house-number grid (about 1,000 numbers per mile; 4-digit numbers run east–west, 5-digit numbers run north–south), calibrated against OSM address points to roughly ±40 m.
-- Intersections are computed from the street centerlines.
-- Co-located calls are nudged a few dozen meters apart so they stay visible.
-- 64 incidents with no usable address ("Unknown") are not shown.
+* Data: https://web1.co.washington.mn.us/MediaReports/RMS/ — every weekly `IncidentSummary_YYYYMMDD.csv`, concatenated and de-duplicated by case number. The log covers the Sheriff's Office and the police departments that share its records system (Oakdale, Woodbury, Stillwater, Cottage Grove, Bayport, Forest Lake, St. Paul Park). 2022 is partial (starts Sept 4). Rows tagged "Saint Paul" (160) are outside the county and were dropped.
+* Placement: the county publishes only a block ("5XXX 157th St N"), an intersection, or a bare street. Each address is matched to OpenStreetMap centerlines restricted to the city (plus a 1 km buffer). Block numbers are placed from OSM address points on that street when they exist, otherwise from Washington County's house-number grid (about 1,000 numbers per mile, with a per-city offset calibrated on OSM address points). Intersections are computed from the centerlines. Older river towns with their own numbering (Stillwater, Bayport, Mahtomedi, Newport, Forest Lake downtown…) fall back to street level more often. Every dot is nudged a few dozen meters (seeded by case number) so overlapping calls stay visible. 97.7% of incidents are placed; the rest ("Unknown", private roads, unmapped streets) are counted but not drawn.
+* Severity tiers are an editorial grouping of the county's 1,185 event labels (explicit lists plus keyword rules), not an official ranking.
+* Base map © OpenStreetMap contributors (ODbL). Incident data © Washington County.
 
-Severity tiers (Critical / High / Medium / Low) are an editorial grouping of the county's 120 event labels, not an official ranking.
+## Refreshing
 
-## Files
-
-- `index.html` — the whole map: page, data and map geometry in one self-contained file (only the web fonts load externally).
+The county posts a new weekly CSV every Wednesday. Rebuild = download new files → `clean.py` (dedupe, severity) → `geocode_county.py` → `build_site.py`. Only `data/inc/*.json` and `data/index.json` change when new incidents arrive; basemaps only change if OSM is re-pulled.
